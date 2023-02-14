@@ -18,19 +18,20 @@
 #include <sbi_utils/serial/uart8250.h>
 #include <sbi_utils/timer/aclint_mtimer.h>
 
-#define CHESHIRE_UART_ADDR			        0x2000000
+#define CHESHIRE_UART_ADDR			        0x02003000
 #define CHESHIRE_UART_FREQ			        50000000
 #define CHESHIRE_UART_BAUDRATE			    115200
 #define CHESHIRE_UART_REG_SHIFT			    2
 #define CHESHIRE_UART_REG_WIDTH			    4
-#define CHESHIRE_PLIC_ADDR			        0xc000000
+#define CHESHIRE_PLIC_ADDR			        0x0c000000
 #define CHESHIRE_PLIC_NUM_SOURCES			20
 #define CHESHIRE_HART_COUNT			        1
-#define CHESHIRE_CLINT_ADDR			        0x4000000
+#define CHESHIRE_CLINT_ADDR			        0x04000000
 #define CHESHIRE_ACLINT_MTIMER_FREQ		    1000000
 #define CHESHIRE_ACLINT_MSWI_ADDR			(CHESHIRE_CLINT_ADDR + 0x0)
 #define CHESHIRE_ACLINT_MTIMER_ADDR		    (CHESHIRE_CLINT_ADDR + 0xbff8)
 #define CHESHIRE_ACLINT_MTIMECMP_ADDR       (CHESHIRE_CLINT_ADDR + 0x4000)
+
 
 static struct plic_data plic = {
 	.addr = CHESHIRE_PLIC_ADDR,
@@ -60,7 +61,6 @@ static struct aclint_mtimer_data mtimer = {
  */
 static int cheshire_early_init(bool cold_boot)
 {
-	/* For now nothing to do. */
 	return 0;
 }
 
