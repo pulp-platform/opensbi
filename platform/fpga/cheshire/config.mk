@@ -20,7 +20,8 @@ ifeq ($(PLATFORM_RISCV_XLEN), 32)
  # This needs to be 2MB aligned for 64-bit support
  FW_JUMP_ADDR=0x80200000
  endif
-FW_JUMP_FDT_ADDR=0x70000000
+# TODO: this is a cancerous workaround; set this correctly, ideally built!
+FW_JUMP_FDT_ADDR=0x80800000
 
 # Firmware with payload configuration.
 FW_PAYLOAD=y
@@ -32,5 +33,6 @@ else
 # This needs to be 2MB aligned for 64-bit support
   FW_PAYLOAD_OFFSET=0x200000
 endif
-FW_PAYLOAD_FDT_ADDR=0x70000000
+# TODO: this is a cancerous workaround; set this correctly, ideally built!
+FW_PAYLOAD_FDT_ADDR=0x80800000
 FW_PAYLOAD_ALIGN=0x1000
