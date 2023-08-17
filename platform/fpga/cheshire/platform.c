@@ -32,6 +32,11 @@
 #define CHESHIRE_ACLINT_MTIMER_ADDR   (CHESHIRE_CLINT_ADDR + 0xbff8)
 #define CHESHIRE_ACLINT_MTIMECMP_ADDR (CHESHIRE_CLINT_ADDR + 0x4000)
 
+static struct platform_uart_data uart = {
+	CHESHIRE_UART_ADDR,
+	CHESHIRE_UART_FREQ,
+	CHESHIRE_UART_BAUDRATE,
+};
 
 static struct plic_data plic = {
 	.addr = CHESHIRE_PLIC_ADDR,
@@ -61,6 +66,18 @@ static struct aclint_mtimer_data mtimer = {
  */
 static int cheshire_early_init(bool cold_boot)
 {
+	void *fdt;
+	struct platform_uart_data uart_data;
+	int rc;
+
+	if (!cold_boot)
+		return 0;
+	fdt = fdt_get_address();
+
+	rc = fdt_parse_uart8250(fdt, &uart_data, "ns16550a");
+	if (!rc)
+		uart = uart_data;
+
 	return 0;
 }
 
@@ -85,9 +102,9 @@ static int cheshire_final_init(bool cold_boot)
  */
 static int cheshire_console_init(void)
 {
-	return uart8250_init(CHESHIRE_UART_ADDR,
-			     CHESHIRE_UART_FREQ,
-			     CHESHIRE_UART_BAUDRATE,
+	return uart8250_init(uart.addr,
+			     uart.freq,
+			     uart.baud,
 			     CHESHIRE_UART_REG_SHIFT,
 			     CHESHIRE_UART_REG_WIDTH);
 }
