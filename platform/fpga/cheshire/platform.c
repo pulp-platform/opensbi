@@ -32,6 +32,12 @@
 #define CHESHIRE_ACLINT_MTIMER_ADDR   (CHESHIRE_CLINT_ADDR + 0xbff8)
 #define CHESHIRE_ACLINT_MTIMECMP_ADDR (CHESHIRE_CLINT_ADDR + 0x4000)
 
+#define CHESHIRE_VGA_ADDR             0x03007000
+#define CHESHIRE_FB_ADDR              0xA0000000
+#define CHESHIRE_FB_HEIGHT            480
+#define CHESHIRE_FB_WIDTH             640
+#define CHESHIRE_FB_SIZE			  (CHESHIRE_FB_WIDTH * CHESHIRE_FB_HEIGHT * 2)
+
 static struct platform_uart_data uart = {
 	CHESHIRE_UART_ADDR,
 	CHESHIRE_UART_FREQ,
@@ -93,6 +99,62 @@ static int cheshire_final_init(bool cold_boot)
 
 	fdt = fdt_get_address();
 	fdt_fixups(fdt);
+
+	// Generate test pattern for screen
+	uint16_t RGB[8] = {
+		0xffff, //White
+		0xffe0, //Yellow
+		0x07ff, //Cyan
+		0x07E0, //Green
+		0xf81f, //Magenta
+		0xF800, //Red
+		0x001F, //Blue
+		0x0000, //Black
+	};
+	int col_width = CHESHIRE_FB_WIDTH / 8;
+
+    volatile uint16_t *fb = (volatile uint16_t*)(void*)(uintptr_t) CHESHIRE_FB_ADDR;
+
+    for (int i=0; i < CHESHIRE_FB_HEIGHT; i++) {
+        for (int j=0; j < CHESHIRE_FB_WIDTH; j++) {
+            fb[CHESHIRE_FB_WIDTH * i + j] = RGB[j / col_width];
+        }
+    }
+
+	// Pointer array to acces VGA control registers.
+	// Every index step increases the pointer by 32bit
+	volatile uint32_t *vga = (volatile uint32_t*)(void*)(uintptr_t) CHESHIRE_VGA_ADDR;
+
+    // Initialize VGA controller and populate framebuffer
+    // Clk div
+    vga[1] = 0x2;        // 8 for Sim, 2 for FPGA
+    
+    // Hori: Visible, Front porch, Sync, Back porch
+    vga[2] = 0x280;
+    vga[3] = 0x10;
+    vga[4] = 0x60;
+    vga[5] = 0x30;
+
+    // Vert: Visible, Front porch, Sync, Back porch
+    vga[6] = 0x1e0;
+    vga[7] = 0xA;
+    vga[8] = 0x2;
+    vga[9] = 0x21;
+
+    // Framebuffer start address
+    vga[10] = CHESHIRE_FB_ADDR;     // Low 32 bit
+    vga[11] = 0x0;            // High 32 bit
+
+    // Framebuffer size
+    vga[12] = CHESHIRE_FB_WIDTH*CHESHIRE_FB_HEIGHT*2;      // 640*480 pixel a 2 byte/pixel
+
+    // Burst length
+    vga[13] = 4;           // 256*8 = 2kB Bursts
+
+    // 0: Enable
+    // 1: Hsync polarity (Active Low  = 0)
+    // 2: Vsync polarity (Active Low  = 0)
+    vga[0] = 0x1;    
 
 	return 0;
 }
