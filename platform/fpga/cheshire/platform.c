@@ -23,7 +23,10 @@
 #define CHESHIRE_UART_BAUDRATE	      115200
 #define CHESHIRE_UART_REG_SHIFT	      2
 #define CHESHIRE_UART_REG_WIDTH	      4
+#define CHESHIRE_UART_REG_OFFSET      0
 #define CHESHIRE_PLIC_ADDR	      0x04000000
+#define CHESHIRE_PLIC_SIZE            (0x200000 + \
+				       (CHESHIRE_HART_COUNT * 0x1000))
 #define CHESHIRE_PLIC_NUM_SOURCES     20
 #define CHESHIRE_HART_COUNT	      1
 #define CHESHIRE_CLINT_ADDR	      0x02040000
@@ -40,6 +43,7 @@ static struct platform_uart_data uart = {
 
 static struct plic_data plic = {
 	.addr = CHESHIRE_PLIC_ADDR,
+	.size = CHESHIRE_PLIC_SIZE,
 	.num_src = CHESHIRE_PLIC_NUM_SOURCES,
 };
 
@@ -58,7 +62,7 @@ static struct aclint_mtimer_data mtimer = {
 	.mtimecmp_size = 16,
 	.first_hartid = 0,
 	.hart_count = CHESHIRE_HART_COUNT,
-	.has_64bit_mmio = FALSE,
+	.has_64bit_mmio = false,
 };
 
 /*
@@ -106,7 +110,8 @@ static int cheshire_console_init(void)
 			     uart.freq,
 			     uart.baud,
 			     CHESHIRE_UART_REG_SHIFT,
-			     CHESHIRE_UART_REG_WIDTH);
+			     CHESHIRE_UART_REG_WIDTH,
+			     CHESHIRE_UART_REG_OFFSET);
 }
 
 static int plic_cheshire_warm_irqchip_init(int m_cntx_id, int s_cntx_id)
@@ -200,5 +205,6 @@ const struct sbi_platform platform = {
 	.features = SBI_PLATFORM_DEFAULT_FEATURES,
 	.hart_count = CHESHIRE_HART_COUNT,
 	.hart_stack_size = SBI_PLATFORM_DEFAULT_HART_STACK_SIZE,
+	.heap_size = SBI_PLATFORM_DEFAULT_HEAP_SIZE(CHESHIRE_HART_COUNT),
 	.platform_ops_addr = (unsigned long)&platform_ops
 };
