@@ -155,6 +155,10 @@ static int generic_final_init(bool cold_boot)
 			return rc;
 	}
 
+	csr_write_num(CSR_PMPCFG0, 0x1f1f1e);
+    asm volatile("csrw 0x700, %0" ::"r"(1));
+    asm volatile("csrw 0x701, %0" ::"r"(1));
+
 	return 0;
 }
 
