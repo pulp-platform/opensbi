@@ -149,7 +149,7 @@ static int cheshire_final_init(bool cold_boot)
     vga[12] = CHESHIRE_FB_WIDTH*CHESHIRE_FB_HEIGHT*2;      // 640*480 pixel a 2 byte/pixel
 
     // Burst length
-    vga[13] = 4;           // 256*8 = 2kB Bursts
+    vga[13] = 16;           // 64b * 16 = 128B Bursts
 
     // 0: Enable
     // 1: Hsync polarity (Active Low  = 0)
