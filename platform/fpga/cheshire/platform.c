@@ -15,6 +15,7 @@
 #include <sbi_utils/fdt/fdt_fixup.h>
 #include <sbi_utils/ipi/aclint_mswi.h>
 #include <sbi_utils/irqchip/plic.h>
+#include <sbi_utils/irqchip/clic.h>
 #include <sbi_utils/serial/uart8250.h>
 #include <sbi_utils/timer/aclint_mtimer.h>
 
@@ -28,6 +29,8 @@
 #define CHESHIRE_PLIC_SIZE            (0x200000 + \
 				       (CHESHIRE_HART_COUNT * 0x1000))
 #define CHESHIRE_PLIC_NUM_SOURCES     20
+#define CHESHIRE_CLIC_ADDR            0x08000000ul
+#define CHESHIRE_CLIC_NUM_SOURCES     64
 #define CHESHIRE_HART_COUNT	      1
 #define CHESHIRE_CLINT_ADDR	      0x02040000
 #define CHESHIRE_ACLINT_MTIMER_FREQ   1000000
@@ -45,6 +48,11 @@ static struct plic_data plic = {
 	.addr = CHESHIRE_PLIC_ADDR,
 	.size = CHESHIRE_PLIC_SIZE,
 	.num_src = CHESHIRE_PLIC_NUM_SOURCES,
+};
+
+static struct clic_data clic = {
+	.addr = CHESHIRE_CLIC_ADDR,
+	.num_src = CHESHIRE_CLIC_NUM_SOURCES,
 };
 
 static struct aclint_mswi_data mswi = {
@@ -150,6 +158,9 @@ static int cheshire_irqchip_init(bool cold_boot)
 		ret = plic_cold_irqchip_init(&plic);
 		if (ret)
 			return ret;
+		ret = clic_init(&clic);
+		if (ret)
+			return ret;
 	}
 	return plic_cheshire_warm_irqchip_init(2 * hartid, 2 * hartid + 1);
 }
@@ -165,6 +176,8 @@ static int cheshire_ipi_init(bool cold_boot)
 		ret = aclint_mswi_cold_init(&mswi);
 		if (ret)
 			return ret;
+		clic_set_enable(IRQ_M_SOFT, 1);
+		clic_set_priority(IRQ_M_SOFT, 255);
 	}
 
 	return aclint_mswi_warm_init();
@@ -186,6 +199,12 @@ static int cheshire_timer_init(bool cold_boot)
 	return aclint_mtimer_warm_init();
 }
 
+static int cheshire_clic_delegate(u32 irq)
+{
+	clic_delegate(&clic, irq);
+	return 0;
+}
+
 /*
  * Platform descriptor.
  */
@@ -196,13 +215,14 @@ const struct sbi_platform_operations platform_ops = {
 	.irqchip_init = cheshire_irqchip_init,
 	.ipi_init = cheshire_ipi_init,
 	.timer_init = cheshire_timer_init,
+	.irqctl_delegate = cheshire_clic_delegate,
 };
 
 const struct sbi_platform platform = {
 	.opensbi_version = OPENSBI_VERSION,
 	.platform_version = SBI_PLATFORM_VERSION(0x0, 0x01),
 	.name = "CHESHIRE RISC-V",
-	.features = SBI_PLATFORM_DEFAULT_FEATURES,
+	.features = SBI_PLATFORM_DEFAULT_FEATURES | SBI_PLATFORM_HAS_CLIC,
 	.hart_count = CHESHIRE_HART_COUNT,
 	.hart_stack_size = SBI_PLATFORM_DEFAULT_HART_STACK_SIZE,
 	.heap_size = SBI_PLATFORM_DEFAULT_HEAP_SIZE(CHESHIRE_HART_COUNT),

@@ -898,6 +898,9 @@ __pmp_skip:
 	/* Detect if hart supports smcntrpmf */
 	__check_ext_csr(SBI_HART_PRIV_VER_1_12,
 			CSR_MCYCLECFG, SBI_HART_EXT_SMCNTRPMF);
+	/* Detect if hart has CLIC CSRs */
+	__check_ext_csr(SBI_HART_PRIV_VER_UNKNOWN,
+			CSR_MTVT, SBI_HART_EXT_CLIC);
 
 #undef __check_ext_csr
 

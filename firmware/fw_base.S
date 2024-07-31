@@ -734,7 +734,7 @@ memcmp:
 .endm
 
 	.section .entry, "ax", %progbits
-	.align 3
+	.align 8
 	.globl _trap_handler
 	.globl _trap_exit
 _trap_handler:

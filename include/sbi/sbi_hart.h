@@ -53,6 +53,8 @@ enum sbi_hart_extensions {
 	SBI_HART_EXT_ZICBOM,
 	/** Hart has Svpbmt extension */
 	SBI_HART_EXT_SVPBMT,
+	/** HART has CLIC CSRs (extension name not available) */
+	SBI_HART_EXT_CLIC,
 
 	/** Maximum index of Hart extension */
 	SBI_HART_EXT_MAX,

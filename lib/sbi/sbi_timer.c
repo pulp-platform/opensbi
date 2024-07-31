@@ -17,6 +17,7 @@
 #include <sbi/sbi_pmu.h>
 #include <sbi/sbi_scratch.h>
 #include <sbi/sbi_timer.h>
+#include <sbi_utils/irqchip/clic.h>
 
 static unsigned long time_delta_off;
 static u64 (*get_time_val)(void);
@@ -133,6 +134,9 @@ void sbi_timer_event_start(u64 next_event)
 {
 	sbi_pmu_ctr_incr_fw(SBI_PMU_FW_SET_TIMER);
 
+	ulong mtvec = csr_read(CSR_MTVEC);
+	u8 clic_mode = (mtvec & 0x03ull) == 0x03ull;
+
 	/**
 	 * Update the stimecmp directly if available. This allows
 	 * the older software to leverage sstc extension on newer hardware.
@@ -146,21 +150,41 @@ void sbi_timer_event_start(u64 next_event)
 #endif
 	} else if (timer_dev && timer_dev->timer_event_start) {
 		timer_dev->timer_event_start(next_event);
-		csr_clear(CSR_MIP, MIP_STIP);
+    	if (clic_mode) {
+    	    clic_set_enable(IRQ_M_TIMER, 0);
+    	} else {
+    	    csr_clear(CSR_MIE, MIP_MTIP);
+    	}
 	}
-	csr_set(CSR_MIE, MIP_MTIP);
+    if (clic_mode) {
+        clic_set_enable(IRQ_M_TIMER, 1);
+    } else {
+        csr_set(CSR_MIE, MIP_MTIP);
+    }
 }
 
 void sbi_timer_process(void)
 {
-	csr_clear(CSR_MIE, MIP_MTIP);
+	ulong mtvec = csr_read(CSR_MTVEC);
+	u8 clic_mode = (mtvec & 0x03ull) == 0x03ull;
+
+	if (clic_mode) {
+		clic_set_enable(IRQ_M_TIMER, 0);
+	} else {
+		csr_clear(CSR_MIE, MIP_MTIP);
+	}
 	/*
 	 * If sstc extension is available, supervisor can receive the timer
 	 * directly without M-mode come in between. This function should
 	 * only invoked if M-mode programs the timer for its own purpose.
 	 */
-	if (!sbi_hart_has_extension(sbi_scratch_thishart_ptr(), SBI_HART_EXT_SSTC))
-		csr_set(CSR_MIP, MIP_STIP);
+	if (!sbi_hart_has_extension(sbi_scratch_thishart_ptr(), SBI_HART_EXT_SSTC)){
+    	if (clic_mode) {
+    	    clic_set_pend(IRQ_S_TIMER, 1);
+    	} else {
+    	    csr_set(CSR_MIP, MIP_STIP);
+    	}
+	}
 }
 
 const struct sbi_timer_device *sbi_timer_get_device(void)
@@ -206,8 +230,16 @@ void sbi_timer_exit(struct sbi_scratch *scratch)
 	if (timer_dev && timer_dev->timer_event_stop)
 		timer_dev->timer_event_stop();
 
-	csr_clear(CSR_MIP, MIP_STIP);
-	csr_clear(CSR_MIE, MIP_MTIP);
+	ulong mtvec = csr_read(CSR_MTVEC);
+	u8 clic_mode = (mtvec & 0x03ull) == 0x03ull;
+
+    if (clic_mode) {
+        clic_set_pend(IRQ_S_TIMER, 0);
+        clic_set_enable(IRQ_M_TIMER, 0);
+    } else {
+		csr_clear(CSR_MIP, MIP_STIP);
+		csr_clear(CSR_MIE, MIP_MTIP);
+    }
 
 	sbi_platform_timer_exit(sbi_platform_ptr(scratch));
 }

@@ -32,6 +32,7 @@
 #define SBI_EXT_DBCN				0x4442434E
 #define SBI_EXT_SUSP				0x53555350
 #define SBI_EXT_CPPC				0x43505043
+#define SBI_EXT_CLIC                0x0A000000
 
 /* SBI function IDs for BASE extension*/
 #define SBI_EXT_BASE_GET_SPEC_VERSION		0x0
@@ -292,6 +293,11 @@ enum sbi_cppc_reg_id {
 	SBI_CPPC_TRANSITION_LATENCY	= 0x80000000,
 	SBI_CPPC_NON_ACPI_LAST		= SBI_CPPC_TRANSITION_LATENCY,
 };
+
+/* SBI function IDs for CLIC extension */
+#define SBI_EXT_CLIC_ENABLE      0x0
+#define SBI_EXT_CLIC_DELEGATE    0x1
+#define SBI_EXT_CLIC_GET_NUMSRCS 0x2
 
 /* SBI base specification related macros */
 #define SBI_SPEC_VERSION_MAJOR_OFFSET		24

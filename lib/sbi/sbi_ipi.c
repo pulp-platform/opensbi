@@ -188,7 +188,14 @@ void sbi_ipi_event_destroy(u32 event)
 
 static void sbi_ipi_process_smode(struct sbi_scratch *scratch)
 {
-	csr_set(CSR_MIP, MIP_SSIP);
+    ulong mtvec = csr_read(CSR_MTVEC);
+    if ((mtvec & 0x03ull) == 0x03ull) {
+        // Hart in CLIC mode
+		clic_set_pend(IRQ_S_SOFT, 1);
+    } else {
+		// Hart in CLINT mode
+        csr_set(CSR_MIP, MIP_SSIP);
+    }
 }
 
 static struct sbi_ipi_event_ops ipi_smode_ops = {
@@ -205,7 +212,14 @@ int sbi_ipi_send_smode(ulong hmask, ulong hbase)
 
 void sbi_ipi_clear_smode(void)
 {
-	csr_clear(CSR_MIP, MIP_SSIP);
+    ulong mtvec = csr_read(CSR_MTVEC);
+    if ((mtvec & 0x03ull) == 0x03ull) {
+        // Hart in CLIC mode
+        clic_set_pend(IRQ_S_SOFT, 0);
+    } else {
+		// Hart in CLINT mode
+        csr_clear(CSR_MIP, MIP_SSIP);
+    }
 }
 
 static void sbi_ipi_process_halt(struct sbi_scratch *scratch)
@@ -346,7 +360,14 @@ int sbi_ipi_init(struct sbi_scratch *scratch, bool cold_boot)
 void sbi_ipi_exit(struct sbi_scratch *scratch)
 {
 	/* Disable software interrupts */
-	csr_clear(CSR_MIE, MIP_MSIP);
+    ulong mtvec = csr_read(CSR_MTVEC);
+    if ((mtvec & 0x03ull) == 0x03ull) {
+		// Hart in CLIC mode
+        clic_set_enable(IRQ_M_SOFT, 0);
+    } else {
+		// Hart in CLINT mode
+        csr_clear(CSR_MIE, MIP_MSIP);
+    }
 
 	/* Process pending IPIs */
 	sbi_ipi_process();
