@@ -715,6 +715,7 @@ const struct sbi_hart_ext_data sbi_hart_ext[] = {
 	__SBI_HART_EXT_DATA(smctr, SBI_HART_EXT_SMCTR),
 	__SBI_HART_EXT_DATA(ssctr, SBI_HART_EXT_SSCTR),
 	__SBI_HART_EXT_DATA(ssstateen, SBI_HART_EXT_SSSTATEEN),
+	__SBI_HART_EXT_DATA(sclic, SBI_HART_EXT_CLIC),
 };
 
 _Static_assert(SBI_HART_EXT_MAX == array_size(sbi_hart_ext),
@@ -965,6 +966,9 @@ __pmp_skip:
 	/* Detect if hart has AIA local interrupt CSRs */
 	__check_ext_csr(SBI_HART_PRIV_VER_UNKNOWN,
 			CSR_MTOPI, SBI_HART_EXT_SMAIA);
+	/* Detect if hart has CLIC local interrupt CSRs */
+	__check_ext_csr(SBI_HART_PRIV_VER_UNKNOWN,
+			CSR_MTVT, SBI_HART_EXT_CLIC);
 	/* Detect if hart supports stimecmp CSR(Sstc extension) */
 	__check_ext_csr(SBI_HART_PRIV_VER_1_12,
 			CSR_STIMECMP, SBI_HART_EXT_SSTC);
