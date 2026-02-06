@@ -82,6 +82,32 @@ static int cheshire_early_init(bool cold_boot)
 	if (!rc)
 		uart = uart_data;
 
+	/* Enable ZICBOM (fields are WARL, so this sticks only if available) */
+	unsigned long v;
+
+	v = csr_read(CSR_MENVCFG);
+
+	#ifdef ENVCFG_CBCFE
+	    /* Zicbom: allow S/U to execute CBO.CLEAN / CBO.FLUSH */
+	    v |= ENVCFG_CBCFE;
+	#endif
+
+	#ifdef ENVCFG_CBIE
+	    /*
+	     * Zicbom: choose CBIE policy. Many firmwares pick "invalidate"
+	     * so cache block instructions behave as expected by OS code.
+	     *
+	     * The exact macro names vary across OpenSBI versions/headers.
+	     * If you have ENVCFG_CBIE_INV or similar, use that.
+	     */
+	#ifdef ENVCFG_CBIE_INV
+		v &= ~ENVCFG_CBIE;
+		v |= (ENVCFG_CBIE_INV << ENVCFG_CBIE_SHIFT);
+	#endif
+	#endif
+
+	csr_write(CSR_MENVCFG, v);
+
 	return 0;
 }
 
@@ -201,7 +227,7 @@ const struct sbi_platform_operations platform_ops = {
 const struct sbi_platform platform = {
 	.opensbi_version = OPENSBI_VERSION,
 	.platform_version = SBI_PLATFORM_VERSION(0x0, 0x01),
-	.name = "CHESHIRE RISC-V",
+	.name = "CHESHIRE CMOs",
 	.features = SBI_PLATFORM_DEFAULT_FEATURES,
 	.hart_count = CHESHIRE_HART_COUNT,
 	.hart_stack_size = SBI_PLATFORM_DEFAULT_HART_STACK_SIZE,
