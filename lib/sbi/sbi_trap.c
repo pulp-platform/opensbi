@@ -75,6 +75,37 @@ static void __noreturn sbi_trap_error(const char *msg, int rc,
 	sbi_hart_hang();
 }
 
+/*
+ * Clanker-authored workaround for CVA6 bug:
+ * https://github.com/openhwgroup/cva6/issues/1989
+ */
+static inline void sbi_workaround_reassert_menvcfg(void)
+{
+#ifdef CSR_MENVCFG
+	unsigned long v = csr_read(CSR_MENVCFG);
+
+	/* Keep Zicbom usable in S-mode even if senvcfg writes clobber menvcfg. */
+#ifdef ENVCFG_CBCFE
+	v |= ENVCFG_CBCFE; /* allow CBO.CLEAN/CBO.FLUSH */
+#endif
+#ifdef ENVCFG_CBIE
+	v &= ~ENVCFG_CBIE;
+	/* Allow CBO.INVAL in S-mode (INV policy) */
+	v |= (ENVCFG_CBIE_INV << ENVCFG_CBIE_SHIFT);
+#endif
+
+	/*
+	 * Optional: FIOM bit. Linux tends to set senvcfg.FIOM=1;
+	 * setting it here keeps menvcfg consistent if your RTL aliases it.
+	 */
+#ifdef ENVCFG_FIOM
+	v |= ENVCFG_FIOM;
+#endif
+
+	csr_write(CSR_MENVCFG, v);
+#endif
+}
+
 /**
  * Redirect trap to lower privledge mode (S-mode or U-mode)
  *
@@ -262,6 +293,9 @@ static int sbi_trap_aia_irq(struct sbi_trap_regs *regs, ulong mcause)
  */
 struct sbi_trap_regs *sbi_trap_handler(struct sbi_trap_regs *regs)
 {
+	/* Botch workaround for CVA6 envcfg aliasing: keep MENVCFG sane. */
+	sbi_workaround_reassert_menvcfg();
+
 	int rc = SBI_ENOTSUPP;
 	const char *msg = "trap handler failed";
 	ulong mcause = csr_read(CSR_MCAUSE);
@@ -341,6 +375,9 @@ typedef void (*trap_exit_t)(const struct sbi_trap_regs *regs);
  */
 void __noreturn sbi_trap_exit(const struct sbi_trap_regs *regs)
 {
+	/* Ensure MENVCFG is correct right before we resume S-mode */
+	sbi_workaround_reassert_menvcfg();
+
 	struct sbi_scratch *scratch = sbi_scratch_thishart_ptr();
 
 	((trap_exit_t)scratch->trap_exit)(regs);
