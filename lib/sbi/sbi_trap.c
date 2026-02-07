@@ -23,6 +23,13 @@
 #include <sbi/sbi_timer.h>
 #include <sbi/sbi_trap.h>
 
+/* Unprivileged load helpers (sbi_load_u16/u32) */
+#include <sbi/sbi_unpriv.h>
+/* If your tree doesn't have sbi_unpriv.h, try:
+ * #include <sbi/riscv_unpriv.h>
+ */
+
+
 static void __noreturn sbi_trap_error(const char *msg, int rc,
 				      ulong mcause, ulong mtval, ulong mtval2,
 				      ulong mtinst, struct sbi_trap_regs *regs)
@@ -75,35 +82,61 @@ static void __noreturn sbi_trap_error(const char *msg, int rc,
 	sbi_hart_hang();
 }
 
+static inline int is_zicbom_cbo(u32 insn)
+{
+	u32 opcode = insn & 0x7f;
+	u32 rd     = (insn >> 7)  & 0x1f;
+	u32 funct3 = (insn >> 12) & 0x7;
+	u32 imm12  = (insn >> 20) & 0xfff;
+
+	/* Zicbom CBOs: opcode=0x0f (misc-mem), funct3=2, rd=x0, imm12 selects op */
+	if (opcode != 0x0f) return 0;
+	if (funct3 != 0x2)  return 0;
+	if (rd != 0x0)      return 0;
+
+	return (imm12 == 0x080) || (imm12 == 0x081) || (imm12 == 0x082);
+}
+
 /*
  * Clanker-authored workaround for CVA6 bug:
  * https://github.com/openhwgroup/cva6/issues/1989
  */
 static inline void sbi_workaround_reassert_menvcfg(void)
 {
-#ifdef CSR_MENVCFG
+//#ifdef CSR_MENVCFG
 	unsigned long v = csr_read(CSR_MENVCFG);
 
-	/* Keep Zicbom usable in S-mode even if senvcfg writes clobber menvcfg. */
-#ifdef ENVCFG_CBCFE
-	v |= ENVCFG_CBCFE; /* allow CBO.CLEAN/CBO.FLUSH */
-#endif
-#ifdef ENVCFG_CBIE
-	v &= ~ENVCFG_CBIE;
-	/* Allow CBO.INVAL in S-mode (INV policy) */
-	v |= (ENVCFG_CBIE_INV << ENVCFG_CBIE_SHIFT);
-#endif
 
-	/*
-	 * Optional: FIOM bit. Linux tends to set senvcfg.FIOM=1;
-	 * setting it here keeps menvcfg consistent if your RTL aliases it.
-	 */
-#ifdef ENVCFG_FIOM
-	v |= ENVCFG_FIOM;
-#endif
+// 	/* Keep Zicbom usable in S-mode even if senvcfg writes clobber menvcfg. */
+// #ifdef ENVCFG_CBCFE
+// 	v |= ENVCFG_CBCFE; /* allow CBO.CLEAN/CBO.FLUSH */
+// #endif
+// #ifdef ENVCFG_CBIE
+// 	v &= ~ENVCFG_CBIE;
+// 	/* Allow CBO.INVAL in S-mode (INV policy) */
+// 	v |= (ENVCFG_CBIE_INV << ENVCFG_CBIE_SHIFT);
+// #endif
+//
+// 	/*
+// 	 * Optional: FIOM bit. Linux tends to set senvcfg.FIOM=1;
+// 	 * setting it here keeps menvcfg consistent if your RTL aliases it.
+// 	 */
+// #ifdef ENVCFG_FIOM
+// 	v |= ENVCFG_FIOM;
+// #endif
+//
+// 	csr_write(CSR_MENVCFG, v);
+// #endif
+
+	/* Disallow all Zicbom / Zicboz CBO ops in S/U mode */
+	v &= ~ENVCFG_CBCFE;   /* blocks CBO.CLEAN / CBO.FLUSH */
+	v &= ~ENVCFG_CBIE;    /* blocks CBO.INVAL when CBIE=0 */
+	v &= ~ENVCFG_CBZE;    /* blocks CBO.ZERO (if implemented) */
 
 	csr_write(CSR_MENVCFG, v);
-#endif
+
+	/* Cause 2 = illegal instruction */
+	csr_clear(CSR_MEDELEG, (1UL << 2));
 }
 
 /**
@@ -301,6 +334,32 @@ struct sbi_trap_regs *sbi_trap_handler(struct sbi_trap_regs *regs)
 	ulong mcause = csr_read(CSR_MCAUSE);
 	ulong mtval = csr_read(CSR_MTVAL), mtval2 = 0, mtinst = 0;
 	struct sbi_trap_info trap;
+
+
+	ulong prev_mode = (regs->mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
+
+	if ((mcause == CAUSE_ILLEGAL_INSTRUCTION) && (prev_mode == PRV_S)) {
+		u64 mepc = csr_read(CSR_MEPC);
+
+		/* Fetch instruction: handle RVC vs 32-bit */
+		u16 hw = 0;
+		struct sbi_trap_info uptrap = { 0 };
+		hw = sbi_load_u16((void *)mepc, &uptrap);
+		if (!uptrap.cause) {
+			if ((hw & 0x3) == 0x3) { /* 32-bit instruction */
+				u32 insn = 0;
+				uptrap.cause = 0;
+				insn = sbi_load_u32((void *)mepc, &uptrap);
+				if (!uptrap.cause) {
+					if (is_zicbom_cbo(insn)) {
+						sbi_printf("===== TRAP: hit Zicbom CBO @ mepc=0x%lx insn=0x%08x =====\n",
+							   (unsigned long)mepc, insn);
+						asm volatile("ebreak");
+					}
+				}
+			}
+		}
+	}
 
 	if (misa_extension('H')) {
 		mtval2 = csr_read(CSR_MTVAL2);
